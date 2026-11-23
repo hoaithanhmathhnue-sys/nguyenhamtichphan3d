@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Camera, Pause, Play, RotateCcw } from 'lucide-react';
 import { Camera3D } from '../utils/mathEngine';
 
 interface CanvasStageProps {
@@ -9,6 +9,7 @@ interface CanvasStageProps {
   legend: { color: string; label: string }[];
   onDraw: (ctx: CanvasRenderingContext2D, width: number, height: number, cam: Camera3D) => void;
   deps: unknown[];
+  exportName?: string;
 }
 
 export const CanvasStage: React.FC<CanvasStageProps> = ({
@@ -18,11 +19,15 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   legend,
   onDraw,
   deps,
+  exportName,
 }) => {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const camRef = useRef<Camera3D>({ yaw: -0.58, pitch: 0.38, zoom: 1.0 });
   const dragRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
+  const drawRef = useRef(onDraw);
+  drawRef.current = onDraw;
+
   const [autoRotate, setAutoRotate] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -41,8 +46,13 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    onDraw(ctx, w, h, camRef.current);
+    // Vẽ nền gradient vào chính canvas để ảnh PNG tải về có nền sạch đẹp, không bị trong suốt
+    const grad = ctx.createRadialGradient(w * 0.3, h * 0.2, 20, w * 0.5, h * 0.5, Math.max(w, h) * 0.85);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, '#eef4fc');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    drawRef.current(ctx, w, h, camRef.current);
   };
 
   useEffect(() => {
@@ -52,6 +62,20 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     return () => window.removeEventListener('resize', onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, is3D, ...deps]);
+
+  // Đăng ký wheel listener với { passive: false } để chặn cuộn trang khi zoom 3D (sửa lỗi passive listener)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !is3D) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      camRef.current.zoom = Math.max(0.55, Math.min(1.9, camRef.current.zoom * (e.deltaY > 0 ? 0.93 : 1.07)));
+      redraw();
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [is3D]);
 
   useEffect(() => {
     if (!autoRotate || !is3D) return;
@@ -86,50 +110,68 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     dragRef.current.active = false;
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    if (!is3D) return;
-    e.preventDefault();
-    camRef.current.zoom = Math.max(0.55, Math.min(1.9, camRef.current.zoom * (e.deltaY > 0 ? 0.93 : 1.07)));
-    redraw();
-  };
-
   const handleReset = () => {
     camRef.current = { yaw: -0.58, pitch: 0.38, zoom: 1.0 };
     setTick((t) => t + 1);
+  };
+
+  const handleSnapshotPng = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    const safeFile = (exportName || title)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 48);
+    link.download = `${safeFile || 'Mo_phong_Tich_phan_3D'}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   return (
     <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-blue-950">{title}</h3>
-        {is3D && (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Đặt lại góc
-            </button>
-            <button
-              type="button"
-              onClick={() => setAutoRotate((v) => !v)}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
-                autoRotate
-                  ? 'border-teal-600 bg-teal-600 text-white'
-                  : 'border-slate-300 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50'
-              }`}
-            >
-              {autoRotate ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-              {autoRotate ? 'Dừng xoay' : 'Tự xoay 3D'}
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {is3D && (
+            <>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Đặt lại góc
+              </button>
+              <button
+                type="button"
+                onClick={() => setAutoRotate((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                  autoRotate
+                    ? 'border-teal-600 bg-teal-600 text-white'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50'
+                }`}
+              >
+                {autoRotate ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {autoRotate ? 'Dừng xoay' : 'Tự xoay 3D'}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={handleSnapshotPng}
+            title="Tải ảnh PNG minh chứng mô hình 2D/3D cho hồ sơ dự án STEM"
+            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100"
+          >
+            <Camera className="h-3.5 w-3.5" /> Chụp ảnh PNG
+          </button>
+        </div>
       </div>
 
       <div
         ref={wrapRef}
-        className="relative h-[460px] w-full overflow-hidden rounded-xl border border-slate-200 bg-[radial-gradient(circle_at_30%_20%,#ffffff_0%,#eef4fc_100%)] sm:h-[520px]"
+        className="relative h-[460px] w-full overflow-hidden rounded-xl border border-slate-200 sm:h-[520px]"
       >
         <canvas
           ref={canvasRef}
@@ -137,7 +179,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          onWheel={handleWheel}
           className={`block h-full w-full touch-none ${is3D ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
         />
         <div className="pointer-events-none absolute right-2.5 bottom-2.5 rounded-lg border border-slate-200 bg-white/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-xs">

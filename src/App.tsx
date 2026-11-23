@@ -8,18 +8,22 @@ import {
   KeyRound,
   Layers,
   Loader2,
+  ShieldAlert,
+  Wand2,
 } from 'lucide-react';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Lab1AreaTab } from './components/tabs/Lab1AreaTab';
 import { Lab2SlicesTab } from './components/tabs/Lab2SlicesTab';
 import { Lab3RevolutionTab } from './components/tabs/Lab3RevolutionTab';
 import { Lab4StemVerifyTab } from './components/tabs/Lab4StemVerifyTab';
+import { AiProblemStudioTab } from './components/tabs/AiProblemStudioTab';
+import { MistakesCardsTab } from './components/tabs/MistakesCardsTab';
 import { QuizTab } from './components/tabs/QuizTab';
 import { TeacherRubricTab } from './components/tabs/TeacherRubricTab';
 import { apiKeyManager } from './services/apiKeyManager';
 import { setModelFallbackListener } from './services/geminiService';
 
-type TabKey = 'lab1' | 'lab2' | 'lab3' | 'lab4' | 'quiz' | 'teacher';
+type TabKey = 'lab1' | 'lab2' | 'lab3' | 'lab4' | 'studio' | 'mistakes' | 'quiz' | 'teacher';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('lab1');
@@ -56,13 +60,15 @@ export function App() {
     return () => setModelFallbackListener(null);
   }, []);
 
-  const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+  const tabs: { key: TabKey; label: string; icon: React.ReactNode; highlight?: boolean }[] = [
     { key: 'lab1', label: 'Lab 1: Diện tích & Đổi dấu', icon: <Compass className="h-4 w-4" /> },
     { key: 'lab2', label: 'Lab 2: Thiết diện 3D S(x)', icon: <Layers className="h-4 w-4" /> },
     { key: 'lab3', label: 'Lab 3: Khối tròn xoay 3D', icon: <Box className="h-4 w-4" /> },
     { key: 'lab4', label: 'Lab 4: Kiểm chứng STEM', icon: <FlaskConical className="h-4 w-4" /> },
-    { key: 'quiz', label: 'Luyện đề 3 phần mới', icon: <ClipboardCheck className="h-4 w-4" /> },
-    { key: 'teacher', label: 'Góc GV: Rubric & AI STEM', icon: <Award className="h-4 w-4" /> },
+    { key: 'studio', label: 'Studio AI → 3D', icon: <Wand2 className="h-4 w-4" />, highlight: true },
+    { key: 'mistakes', label: '4 Thẻ Lỗi Sai', icon: <ShieldAlert className="h-4 w-4" /> },
+    { key: 'quiz', label: 'Đề Pre/Post-test', icon: <ClipboardCheck className="h-4 w-4" /> },
+    { key: 'teacher', label: 'Góc GV: Rubric & AI', icon: <Award className="h-4 w-4" /> },
   ];
 
   return (
@@ -129,10 +135,14 @@ export function App() {
                 key={t.key}
                 type="button"
                 onClick={() => setActiveTab(t.key)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
                   active
-                    ? 'border-blue-700 bg-blue-700 text-white shadow-sm'
-                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+                    ? t.highlight
+                      ? 'border-indigo-700 bg-gradient-to-r from-indigo-600 to-blue-700 text-white shadow-sm'
+                      : 'border-blue-700 bg-blue-700 text-white shadow-sm'
+                    : t.highlight
+                      ? 'border-indigo-200 bg-indigo-50/80 text-indigo-800 hover:border-indigo-400 hover:bg-indigo-100'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
                 }`}
               >
                 {t.icon}
@@ -149,6 +159,8 @@ export function App() {
         {activeTab === 'lab2' && <Lab2SlicesTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
         {activeTab === 'lab3' && <Lab3RevolutionTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
         {activeTab === 'lab4' && <Lab4StemVerifyTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
+        {activeTab === 'studio' && <AiProblemStudioTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
+        {activeTab === 'mistakes' && <MistakesCardsTab onJumpToTab={(t) => setActiveTab(t)} />}
         {activeTab === 'quiz' && <QuizTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
         {activeTab === 'teacher' && <TeacherRubricTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
       </main>

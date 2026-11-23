@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Award, Download, Sparkles } from 'lucide-react';
+import { Award, Download, RotateCcw, Sparkles } from 'lucide-react';
 import { ThinkingLevel } from '@google/genai';
 import { AiAssistantPanel } from '../AiAssistantPanel';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
@@ -20,20 +20,21 @@ interface GroupRubric {
   deltaPct: number;
 }
 
-const RUBRIC_STORAGE_KEY = 'integral_stem_rubric_12a2_v1';
+const RUBRIC_STORAGE_KEY = 'integral_stem_rubric_12a2_v2';
 
 const DEFAULT_GROUPS: GroupRubric[] = [
-  { groupId: 1, name: 'Nhóm 1 (12A2)', project: 'Dự án 1: Cổng vòm Parabol', c1: 1.8, c2: 2.7, c3: 1.8, c4: 1.7, c5: 0.9, deltaPct: 0.9 },
-  { groupId: 2, name: 'Nhóm 2 (12A2)', project: 'Dự án 2: Bình hoa gốm sứ', c1: 1.9, c2: 2.8, c3: 1.9, c4: 1.9, c5: 0.9, deltaPct: 1.95 },
-  { groupId: 3, name: 'Nhóm 3 (12A2)', project: 'Dự án 3: Bồn nước chỏm cầu', c1: 1.7, c2: 2.5, c3: 1.7, c4: 1.6, c5: 0.8, deltaPct: 2.4 },
-  { groupId: 4, name: 'Nhóm 4 (12A2)', project: 'Dự án 4: Mái lều thiết diện S(x)', c1: 1.8, c2: 2.6, c3: 1.8, c4: 1.8, c5: 0.9, deltaPct: 1.8 },
-  { groupId: 5, name: 'Nhóm 5 (12A2)', project: 'Dự án 1: Hoa văn 4 cánh', c1: 1.6, c2: 2.4, c3: 1.6, c4: 1.5, c5: 0.8, deltaPct: 3.1 },
-  { groupId: 6, name: 'Nhóm 6 (12A2)', project: 'Dự án 2: Ly thủy tinh Paraboloid', c1: 1.8, c2: 2.7, c3: 1.8, c4: 1.8, c5: 0.9, deltaPct: 2.1 },
-  { groupId: 7, name: 'Nhóm 7 (12A2)', project: 'Dự án 3: Bồn trụ nằm ngang', c1: 1.5, c2: 2.2, c3: 1.6, c4: 1.5, c5: 0.8, deltaPct: 4.2 },
-  { groupId: 8, name: 'Nhóm 8 (12A2)', project: 'Dự án 4: Mái vòm bán cầu', c1: 1.7, c2: 2.5, c3: 1.7, c4: 1.6, c5: 0.8, deltaPct: 2.8 },
+  { groupId: 1, name: 'Nhóm 1', project: 'Dự án 1: Cổng vòm Parabol', c1: 1.8, c2: 2.7, c3: 1.8, c4: 1.7, c5: 0.9, deltaPct: 0.9 },
+  { groupId: 2, name: 'Nhóm 2', project: 'Dự án 2: Bình hoa gốm sứ', c1: 1.9, c2: 2.8, c3: 1.9, c4: 1.9, c5: 0.9, deltaPct: 1.95 },
+  { groupId: 3, name: 'Nhóm 3', project: 'Dự án 3: Bồn nước chỏm cầu', c1: 1.7, c2: 2.5, c3: 1.7, c4: 1.6, c5: 0.8, deltaPct: 2.4 },
+  { groupId: 4, name: 'Nhóm 4', project: 'Dự án 4: Mái lều thiết diện S(x)', c1: 1.8, c2: 2.6, c3: 1.8, c4: 1.8, c5: 0.9, deltaPct: 1.8 },
+  { groupId: 5, name: 'Nhóm 5', project: 'Dự án 1: Hoa văn 4 cánh', c1: 1.6, c2: 2.4, c3: 1.6, c4: 1.5, c5: 0.8, deltaPct: 3.1 },
+  { groupId: 6, name: 'Nhóm 6', project: 'Dự án 2: Ly thủy tinh Paraboloid', c1: 1.8, c2: 2.7, c3: 1.8, c4: 1.8, c5: 0.9, deltaPct: 2.1 },
+  { groupId: 7, name: 'Nhóm 7', project: 'Dự án 3: Bồn trụ nằm ngang', c1: 1.5, c2: 2.2, c3: 1.6, c4: 1.5, c5: 0.8, deltaPct: 4.2 },
+  { groupId: 8, name: 'Nhóm 8', project: 'Dự án 4: Mái vòm bán cầu', c1: 1.7, c2: 2.5, c3: 1.7, c4: 1.6, c5: 0.8, deltaPct: 2.8 },
 ];
 
 export const TeacherRubricTab: React.FC<Props> = ({ onOpenSettings }) => {
+  const [classLabel, setClassLabel] = useState('Lớp Thực nghiệm 12A2 (40 HS)');
   const [groups, setGroups] = useState<GroupRubric[]>(DEFAULT_GROUPS);
   const [contextInput, setContextInput] = useState('Cổng chào Parabol tại Trường THPT Tây Nam hoặc Bình gốm sứ làng nghề Lái Thiêu');
   const [topicSelect, setTopicSelect] = useState('Thể tích khối tròn xoay quanh trục Ox');
@@ -49,7 +50,8 @@ export const TeacherRubricTab: React.FC<Props> = ({ onOpenSettings }) => {
       const saved = localStorage.getItem(RUBRIC_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) setGroups(parsed);
+        if (typeof parsed.classLabel === 'string') setClassLabel(parsed.classLabel);
+        if (Array.isArray(parsed.groups) && parsed.groups.length > 0) setGroups(parsed.groups);
       }
     } catch {
       // ignore
@@ -57,29 +59,35 @@ export const TeacherRubricTab: React.FC<Props> = ({ onOpenSettings }) => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(RUBRIC_STORAGE_KEY, JSON.stringify(groups));
-  }, [groups]);
+    localStorage.setItem(RUBRIC_STORAGE_KEY, JSON.stringify({ classLabel, groups }));
+  }, [classLabel, groups]);
 
   const updateScore = (id: number, field: keyof GroupRubric, val: number, maxVal: number) => {
     const safe = Math.max(0, Math.min(maxVal, Number.isFinite(val) ? val : 0));
     setGroups((prev) => prev.map((g) => (g.groupId === id ? { ...g, [field]: safe } : g)));
   };
 
+  const resetDefaultClass = () => {
+    setClassLabel('Lớp Thực nghiệm 12A2 (40 HS)');
+    setGroups(DEFAULT_GROUPS);
+  };
+
   const totalOf = (g: GroupRubric) => +(g.c1 + g.c2 + g.c3 + g.c4 + g.c5).toFixed(2);
   const classAvg = +(groups.reduce((s, g) => s + totalOf(g), 0) / groups.length).toFixed(2);
 
   const exportCsv = () => {
-    const header = 'Nhom,Du_an_STEM,TC1_Do_Truc(2d),TC2_TichPhan(3d),TC3_Web3D_NLS(2d),TC4_SaiSo_STEM(2d),TC5_HopTac(1d),Tong_Diem,Sai_So_Delta(%)';
+    const header = 'Lop,Nhom,Du_an_STEM,TC1_Do_Truc(2d),TC2_TichPhan(3d),TC3_Web3D_NLS(2d),TC4_SaiSo_STEM(2d),TC5_HopTac(1d),Tong_Diem,Sai_So_Delta(%)';
     const lines = groups.map(
       (g) =>
-        `"${g.name}","${g.project}",${g.c1},${g.c2},${g.c3},${g.c4},${g.c5},${totalOf(g)},${g.deltaPct}`,
+        `"${classLabel}","${g.name}","${g.project}",${g.c1},${g.c2},${g.c3},${g.c4},${g.c5},${totalOf(g)},${g.deltaPct}`,
     );
     const csv = '\uFEFF' + [header, ...lines].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Bang_Cham_Rubric_STEM_12A2_THPT_TayNam.csv';
+    const slug = classLabel.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '') || '12A2';
+    a.download = `Bang_Cham_Rubric_STEM_${slug}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -96,7 +104,7 @@ Hãy thiết kế **01 Phiếu Dự án STEM & Bài toán thực tế mới** th
 - **Mạch kiến thức trọng tâm:** ${topicSelect}
 - **Mức độ & Định dạng:** ${difficulty}
 
-Cấu trúc đầu ra bắt buộc (rõ ràng, sử dụng ngay trong tiết dạy):
+Cấu trúc đầu ra bắt buộc (rõ ràng, công thức viết chuẩn LaTeX $...$ hoặc $$...$$ để hiển thị sắc nét):
 1. **Tên dự án STEM & Tình huống mở đầu** (có kích thước, ràng buộc vật liệu/chi phí hợp lí, ghi rõ giả định).
 2. **Hướng dẫn 5 bước STEM** (Đo – Gắn trục Oxy – Mô phỏng 3D – Tính tích phân – Kiểm chứng vật lí) kèm mã chỉ báo Năng lực số (1.2.NC1a, 2.2.NC1a, 3.2.NC1a, 5.2.NC1a).
 3. **Lời giải mẫu chi tiết** (tính toán chính xác 100%, ghi rõ đơn vị và bước kiểm chứng).
@@ -128,24 +136,59 @@ Cấu trúc đầu ra bắt buộc (rõ ràng, sử dụng ngay trong tiết d�
     <div className="space-y-4">
       {/* Phần 1: Bảng chấm Rubric 10 điểm */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Award className="h-5 w-5 text-blue-700" />
             <div>
               <h2 className="text-sm font-extrabold text-blue-950">
-                Bảng chấm Rubric Dự án STEM &amp; Năng lực số (8 nhóm — Lớp Thực nghiệm 12A2, 40 HS)
+                Bảng chấm Rubric Dự án STEM &amp; Năng lực số — {classLabel}
               </h2>
               <p className="text-xs text-slate-500">
-                Đồng bộ Bảng 4.7 SKKN · Tự động lưu trên trình duyệt · Điểm TB các nhóm: <b className="text-blue-800">{classAvg}/10</b>
+                Đồng bộ Bảng 4.7 SKKN · Tự động lưu trên trình duyệt · Điểm TB các nhóm:{' '}
+                <b className="text-blue-800">{classAvg}/10</b>
               </p>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={resetDefaultClass}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Khôi phục mẫu 12A2
+            </button>
+            <button
+              type="button"
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-teal-700"
+            >
+              <Download className="h-4 w-4" /> Xuất bảng điểm CSV (Excel)
+            </button>
+          </div>
+        </div>
+
+        {/* Chỉnh nhanh tên lớp / sĩ số */}
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+          <span className="font-bold text-slate-600">Lớp đang chấm:</span>
+          <input
+            type="text"
+            value={classLabel}
+            onChange={(e) => setClassLabel(e.target.value)}
+            className="min-w-[230px] flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800"
+          />
           <button
             type="button"
-            onClick={exportCsv}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-teal-700"
+            onClick={() => setClassLabel('Lớp Thực nghiệm 12A2 (40 HS)')}
+            className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
           >
-            <Download className="h-4 w-4" /> Xuất bảng điểm CSV (Excel)
+            12A2 (40 HS)
+          </button>
+          <button
+            type="button"
+            onClick={() => setClassLabel('Lớp Đối chứng 12C10 (43 HS)')}
+            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+          >
+            12C10 (43 HS)
           </button>
         </div>
 
