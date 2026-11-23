@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+}
+
+.math-serif {
+  font-family: "Cambria Math", "Times New Roman", Georgia, serif;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
