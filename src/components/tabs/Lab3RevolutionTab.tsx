@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react';
 import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { AiAssistantPanel } from '../AiAssistantPanel';
+import { MathFormula } from '../MathText';
 import { Camera3D, drawAxes3D, drawLathe3D, simpson } from '../../utils/mathEngine';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
 
@@ -36,6 +37,8 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
         unit: 'cm',
         title: 'Dự án 2A: Bình hoa gốm sứ (có độ dày thành)',
         formula: 'r(x) = 4,4 + 1,8·sin(πx/13,5) − 0,018(x − 8)²',
+        formulaTex: `r(x) = 4{,}4 + 1{,}8\\sin\\!\\left(\\dfrac{\\pi x}{13{,}5}\\right) - 0{,}018(x-8)^2`,
+        integralTex: `V_{\\text{trong}} = \\pi\\int_{${wallThick.toFixed(2)}}^{20} [r(x) - ${wallThick.toFixed(2)}]^2\\,dx`,
         scaleX: 0.3,
         scaleR: 0.34,
       };
@@ -49,6 +52,8 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
         unit: 'm',
         title: 'Dự án 3A: Bồn chứa nước hình chỏm cầu',
         formula: `r(x) = √(${Rcap.toFixed(1)}² − x²), h = ${hW.toFixed(2)} m`,
+        formulaTex: `r(x) = \\sqrt{${Rcap.toFixed(1)}^2 - x^2}, \\; h = ${hW.toFixed(2)}\\text{ m}`,
+        integralTex: `V(h) = \\pi\\int_{-R}^{-R+h}(R^2 - x^2)\\,dx = \\pi h^2\\!\\left(R - \\dfrac{h}{3}\\right)`,
         scaleX: 1.55,
         scaleR: 1.55,
       };
@@ -60,6 +65,8 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
       unit: 'cm',
       title: 'Dự án 2B: Ly thủy tinh Paraboloid',
       formula: 'r(x) = √(2x + 4), x ∈ [0; 10] cm',
+      formulaTex: `r(x) = \\sqrt{2x + 4}, \\; x \\in [0;\\,10]\\text{ cm}`,
+      integralTex: `V = \\pi\\int_{0}^{10} (2x+4)\\,dx = 140\\pi\\text{ cm}^3`,
       scaleX: 0.56,
       scaleR: 0.42,
     };
@@ -235,8 +242,12 @@ Hãy trả lời ngắn gọn, bám sát đề thi TN THPT cấu trúc mới:
 
         <div className="rounded-lg border border-slate-200 border-l-4 border-l-blue-700 bg-slate-50 p-2.5 text-xs">
           <div className="font-bold text-slate-800">{profile.title}</div>
-          <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">{profile.formula}</div>
-          <div className="mt-0.5 text-[11px] text-slate-600">V = π ∫ [r(x)]² dx</div>
+          <div className="mt-1 overflow-x-auto text-blue-950">
+            <MathFormula tex={profile.formulaTex} />
+          </div>
+          <div className="mt-1 overflow-x-auto text-[11px] text-slate-700">
+            <MathFormula tex={profile.integralTex} />
+          </div>
         </div>
 
         {preset === 'sphere_cap' ? (

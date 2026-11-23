@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react';
 import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { AiAssistantPanel } from '../AiAssistantPanel';
+import { MathFormula } from '../MathText';
 import { simpson } from '../../utils/mathEngine';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
 
@@ -389,26 +390,41 @@ Hãy tạo phản hồi ngắn gọn, thực chiến gồm 3 mục:
           {preset === 'arch' && (
             <>
               <div className="font-bold text-slate-800">Dự án 1A – Cổng vòm Parabol:</div>
-              <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">
-                y = {H.toFixed(1)} − {kArch.toFixed(3)}x², x ∈ [{aArch.toFixed(1)}; {bArch.toFixed(1)}]
+              <div className="mt-1 overflow-x-auto text-blue-950">
+                <MathFormula
+                  tex={`y = ${H.toFixed(1)} - ${kArch.toFixed(3)}x^2, \\; x \\in [${aArch.toFixed(1)};\\,${bArch.toFixed(1)}]`}
+                />
               </div>
-              <div className="mt-0.5 text-[11px] text-slate-600">S = ∫({H.toFixed(1)} − {kArch.toFixed(3)}x²)dx = (2/3)·W·H</div>
+              <div className="mt-1 overflow-x-auto text-[11px] text-slate-700">
+                <MathFormula
+                  tex={`S = \\int_{${aArch.toFixed(1)}}^{${bArch.toFixed(1)}} (${H.toFixed(1)} - ${kArch.toFixed(3)}x^2)\\,dx = \\dfrac{2}{3}WH`}
+                />
+              </div>
             </>
           )}
           {preset === 'sign' && (
             <>
               <div className="font-bold text-slate-800">Bản đồ đổi dấu 3 lớp:</div>
-              <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">f(x) = 0,4(x³ − 3x) trên [−2; 2]</div>
-              <div className="mt-0.5 text-[11px] text-slate-600">Điểm đổi dấu nội bộ: x = −√3; x = 0; x = √3</div>
+              <div className="mt-1 overflow-x-auto text-blue-950">
+                <MathFormula tex={`f(x) = 0{,}4(x^3 - 3x), \\; x \\in [-2;\\,2]`} />
+              </div>
+              <div className="mt-1 overflow-x-auto text-[11px] text-slate-700">
+                <span>Điểm đổi dấu nội bộ: </span>
+                <MathFormula tex={`x \\in \\{-\\sqrt{3};\\; 0;\\; \\sqrt{3}\\}`} />
+              </div>
             </>
           )}
           {preset === 'flower' && (
             <>
               <div className="font-bold text-slate-800">Hoa văn 4 cánh đối xứng:</div>
-              <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">
-                f(x) = {H.toFixed(1)}√(x/{Lfl.toFixed(1)}), g(x) = {H.toFixed(1)}(x/{Lfl.toFixed(1)})²
+              <div className="mt-1 overflow-x-auto text-blue-950">
+                <MathFormula
+                  tex={`f(x) = ${H.toFixed(1)}\\sqrt{\\dfrac{x}{${Lfl.toFixed(1)}}}, \\; g(x) = ${H.toFixed(1)}\\left(\\dfrac{x}{${Lfl.toFixed(1)}}\\right)^2`}
+                />
               </div>
-              <div className="mt-0.5 text-[11px] text-slate-600">S₁ cánh = (1/3)·L·H ⇒ 4 cánh = (4/3)·L·H</div>
+              <div className="mt-1 overflow-x-auto text-[11px] text-slate-700">
+                <MathFormula tex={`S_{1\\text{ cánh}} = \\dfrac{1}{3}LH \\;\\Rightarrow\\; S_{4\\text{ cánh}} = \\dfrac{4}{3}LH`} />
+              </div>
             </>
           )}
         </div>

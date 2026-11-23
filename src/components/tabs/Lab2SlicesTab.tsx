@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react';
 import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { AiAssistantPanel } from '../AiAssistantPanel';
+import { MathFormula } from '../MathText';
 import { Camera3D, drawAxes3D, project3D, simpson } from '../../utils/mathEngine';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
 
@@ -243,21 +244,21 @@ Hãy trình bày ngắn gọn, rõ ràng:
           {preset === 'tent_tri' && (
             <>
               <div className="font-bold text-slate-800">Dự án 4 – Mái lều thiết diện tam giác đều:</div>
-              <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">S(x) = √3·({(R * R).toFixed(2)} − x²)</div>
-              <div className="mt-0.5 text-[11px] text-slate-600">V = ∫ S(x)dx = (4√3 / 3)·R³</div>
+              <MathFormula tex={`S(x) = \\sqrt{3}\\left(${(R * R).toFixed(2)} - x^2\\right)`} className="mt-1 block text-blue-950" />
+              <MathFormula tex={`V = \\int_{-${R.toFixed(1)}}^{${R.toFixed(1)}} S(x)\\,dx = \\frac{4\\sqrt{3}}{3}R^3`} className="mt-0.5 block text-[11.5px] text-slate-700" />
             </>
           )}
           {preset === 'dome_semi' && (
             <>
               <div className="font-bold text-slate-800">Mái vòm thiết diện nửa hình tròn:</div>
-              <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">S(x) = (π/2)·({(R * R).toFixed(2)} − x²)</div>
-              <div className="mt-0.5 text-[11px] text-slate-600">V = (2π / 3)·R³</div>
+              <MathFormula tex={`S(x) = \\frac{\\pi}{2}\\left(${(R * R).toFixed(2)} - x^2\\right)`} className="mt-1 block text-blue-950" />
+              <MathFormula tex={`V = \\int_{-${R.toFixed(1)}}^{${R.toFixed(1)}} S(x)\\,dx = \\frac{2\\pi}{3}R^3`} className="mt-0.5 block text-[11.5px] text-slate-700" />
             </>
           )}
           {preset === 'tank_cyl' && (
             <>
               <div className="font-bold text-slate-800">Dự án 3B – Bồn trụ nằm ngang (L = {L.toFixed(1)} m):</div>
-              <div className="math-serif mt-0.5 text-sm font-bold text-blue-950">V(h) = L · ∫ 2√(R² − y²) dy</div>
+              <MathFormula tex={`V(h) = L\\int_{-R}^{-R+h} 2\\sqrt{R^2 - y^2}\\,dy`} className="mt-1 block text-blue-950" />
               <div className="mt-0.5 text-[11px] text-slate-600">Mực nước h = {hVal.toFixed(2)} m / {(2 * R).toFixed(1)} m</div>
             </>
           )}
@@ -294,6 +295,15 @@ Hãy trình bày ngắn gọn, rõ ràng:
               <div className="rounded-lg border border-teal-200 bg-teal-50/70 p-2.5">
                 <div className="text-[11px] font-semibold text-slate-600">Tổng {nSlices} lát</div>
                 <div className="font-mono text-base font-extrabold text-teal-900">{vSumDome.toFixed(2)} m³</div>
+                <div className="text-[10.5px] text-slate-500">Sai số: {((Math.abs(vSumDome - vExactDome) / vExactDome) * 100).toFixed(2)}%</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="text-[11px] font-semibold text-slate-600">Thiết diện max</div>
+                <div className="font-mono text-sm font-bold">{(0.5 * Math.PI * R * R).toFixed(2)} m²</div>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2">
+                <div className="text-[11px] font-semibold text-amber-800">Độ dày Δx</div>
+                <div className="font-mono text-sm font-bold text-amber-950">{dx.toFixed(3)} m</div>
               </div>
             </>
           )}

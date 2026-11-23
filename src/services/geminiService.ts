@@ -444,3 +444,140 @@ export const validateApiKey = async (
     message: getFriendlyErrorMessage(lastType, provider),
   };
 };
+
+export interface JsonRequestOptions {
+  prompt: string;
+  label?: string;
+  thinkingLevel?: ThinkingLevel;
+  maxOutputTokens?: number;
+  systemInstruction?: string;
+}
+
+const stripJsonCodeFence = (raw: string): string => {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced) return fenced[1].trim();
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+  return trimmed;
+};
+
+// Gọi AI trả về JSON có cấu trúc (responseMimeType: application/json) qua chung client factory & fallback
+export const generateJsonWithFallback = async <T,>(
+  options: JsonRequestOptions,
+): Promise<{ data: T; usedModel: string }> => {
+  const provider = apiKeyManager.getProvider();
+  const label = options.label || 'Phân tích AI JSON';
+  const attemptedKeys = new Set<string>();
+
+  if (!apiKeyManager.hasAnyConfiguredKey(provider)) {
+    throw new Error('Vui lòng cấu hình API Key trước khi sử dụng tính năng này.');
+  }
+
+  let lastErrorType: ParsedApiErrorType = 'UNKNOWN';
+  let parseFailureMsg: string | null = null;
+
+  try {
+    while (true) {
+      const apiKey = apiKeyManager.getActiveKey(provider);
+      if (!apiKey || attemptedKeys.has(apiKey)) break;
+      attemptedKeys.add(apiKey);
+
+      const ai = createGoogleAiClient(apiKey, provider);
+      const models = getOrderedModels(provider);
+      let keyExhaustedType: ParsedApiErrorType | null = null;
+
+      for (let i = 0; i < models.length; i++) {
+        const model = models[i];
+        try {
+          const config = getGeminiGenerationConfig(model, {
+            provider,
+            thinkingLevel: options.thinkingLevel ?? ThinkingLevel.MEDIUM,
+            systemInstruction: options.systemInstruction ?? SYSTEM_INSTRUCTION_MATH_STEM,
+            maxOutputTokens: options.maxOutputTokens ?? 8192,
+            responseMimeType: 'application/json',
+          });
+
+          const response = await ai.models.generateContent({
+            model,
+            contents: options.prompt,
+            config,
+          });
+
+          const rawText = response.text || '';
+          const cleaned = stripJsonCodeFence(rawText);
+          try {
+            const parsed = JSON.parse(cleaned) as T;
+            return { data: parsed, usedModel: model };
+          } catch {
+            parseFailureMsg = 'Phản hồi AI chưa đúng định dạng JSON chuẩn. Vui lòng bấm Thử lại.';
+            if (i < models.length - 1) {
+              emitFallback({
+                type: 'switch',
+                label,
+                from: model,
+                to: models[i + 1],
+                reason: 'trả JSON chưa đầy đủ',
+              });
+              continue;
+            }
+            break;
+          }
+        } catch (err) {
+          lastErrorType = parseApiError(err);
+          if (lastErrorType === 'INVALID_API_KEY') {
+            keyExhaustedType = 'INVALID_API_KEY';
+            break;
+          }
+          if (lastErrorType === 'NETWORK_ERROR') {
+            throw new Error(getFriendlyErrorMessage('NETWORK_ERROR', provider));
+          }
+          if (isModelFallbackEligible(lastErrorType, provider) && i < models.length - 1) {
+            emitFallback({
+              type: 'switch',
+              label,
+              from: model,
+              to: models[i + 1],
+              reason: getSwitchReasonLabel(lastErrorType),
+            });
+            continue;
+          }
+          if (
+            lastErrorType === 'QUOTA_EXCEEDED' ||
+            lastErrorType === 'RATE_LIMIT' ||
+            lastErrorType === 'PERMISSION_DENIED'
+          ) {
+            keyExhaustedType = lastErrorType;
+          }
+          break;
+        }
+      }
+
+      if (
+        keyExhaustedType === 'INVALID_API_KEY' ||
+        keyExhaustedType === 'QUOTA_EXCEEDED' ||
+        keyExhaustedType === 'RATE_LIMIT' ||
+        keyExhaustedType === 'PERMISSION_DENIED'
+      ) {
+        const rot = apiKeyManager.markKeyError(apiKey, keyExhaustedType, provider);
+        if (rot.rotated) {
+          emitFallback({
+            type: 'key-switch',
+            label,
+            message: 'Đang tự động chuyển sang API Key dự phòng...',
+          });
+          continue;
+        }
+      }
+      break;
+    }
+
+    throw new Error(parseFailureMsg || getFriendlyErrorMessage(lastErrorType, provider));
+  } finally {
+    emitFallback({ type: 'done', label });
+  }
+};
+
