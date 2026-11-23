@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 @layer base {
   body {
@@ -8,6 +9,132 @@
 
 .math-serif {
   font-family: "Cambria Math", "Times New Roman", Georgia, serif;
+}
+
+/* Định dạng học thuật cho nội dung AI Markdown + Công thức toán học */
+.ai-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.ai-markdown p {
+  margin: 0.45rem 0;
+  line-height: 1.68;
+}
+
+.ai-markdown h1,
+.ai-markdown h2 {
+  margin: 1rem 0 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid #dbeafe;
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #1e3a8a;
+}
+
+.ai-markdown h3,
+.ai-markdown h4 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.ai-markdown ul {
+  margin: 0.4rem 0 0.6rem;
+  padding-left: 1.25rem;
+  list-style-type: disc;
+}
+
+.ai-markdown ol {
+  margin: 0.4rem 0 0.6rem;
+  padding-left: 1.35rem;
+  list-style-type: decimal;
+}
+
+.ai-markdown li {
+  margin: 0.25rem 0;
+  line-height: 1.65;
+}
+
+.ai-markdown li::marker {
+  color: #0d9488;
+  font-weight: 700;
+}
+
+.ai-markdown strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ai-markdown blockquote {
+  margin: 0.5rem 0 0.7rem;
+  padding: 0.55rem 0.9rem;
+  border-left: 3.5px solid #2563eb;
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: #eff6ff;
+  color: #1e293b;
+}
+
+.ai-markdown blockquote p {
+  margin: 0.15rem 0;
+}
+
+.ai-markdown hr {
+  margin: 0.85rem 0;
+  border: none;
+  border-top: 1px solid #cbd5e1;
+}
+
+.ai-markdown table {
+  width: 100%;
+  margin: 0.65rem 0;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+}
+
+.ai-markdown th {
+  background: #1e3a8a;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #1e3a8a;
+  text-align: left;
+}
+
+.ai-markdown td {
+  padding: 0.42rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.ai-markdown tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.ai-markdown code {
+  background: #f1f5f9;
+  color: #0f172a;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.85em;
+}
+
+.ai-markdown .katex {
+  font-size: 1.04em;
+  color: #0f172a;
+}
+
+.ai-markdown .katex-display {
+  margin: 0.7rem 0;
+  padding: 0.6rem 0.85rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
 }
 
 @media print {
