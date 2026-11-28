@@ -23,7 +23,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
 }) => {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const camRef = useRef<Camera3D>({ yaw: -0.58, pitch: 0.38, zoom: 1.0 });
+  const camRef = useRef<Camera3D>({ yaw: -0.52, pitch: 0.36, zoom: 1.0 });
   const dragRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const drawRef = useRef(onDraw);
   drawRef.current = onDraw;
@@ -69,7 +69,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     if (!canvas || !is3D) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      camRef.current.zoom = Math.max(0.55, Math.min(1.9, camRef.current.zoom * (e.deltaY > 0 ? 0.93 : 1.07)));
+      camRef.current.zoom = Math.max(0.55, Math.min(2.2, camRef.current.zoom * (e.deltaY > 0 ? 0.93 : 1.07)));
       redraw();
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -92,8 +92,13 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!is3D) return;
+    e.preventDefault();
     dragRef.current = { active: true, x: e.clientX, y: e.clientY };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore synthetic mouse events without active pointerId
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -102,7 +107,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     const dy = e.clientY - dragRef.current.y;
     dragRef.current = { active: true, x: e.clientX, y: e.clientY };
     camRef.current.yaw += dx * 0.008;
-    camRef.current.pitch = Math.max(-1.25, Math.min(1.25, camRef.current.pitch + dy * 0.008));
+    camRef.current.pitch = Math.max(-1.4, Math.min(1.4, camRef.current.pitch + dy * 0.008));
     redraw();
   };
 
@@ -111,7 +116,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   };
 
   const handleReset = () => {
-    camRef.current = { yaw: -0.58, pitch: 0.38, zoom: 1.0 };
+    camRef.current = { yaw: -0.52, pitch: 0.36, zoom: 1.0 };
     setTick((t) => t + 1);
   };
 
@@ -179,7 +184,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className={`block h-full w-full touch-none ${is3D ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+          className={`block h-full w-full select-none touch-none ${is3D ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
         />
         <div className="pointer-events-none absolute right-2.5 bottom-2.5 rounded-lg border border-slate-200 bg-white/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-xs">
           {hint}

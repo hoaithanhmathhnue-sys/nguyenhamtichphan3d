@@ -4,7 +4,7 @@ import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { AiAssistantPanel } from '../AiAssistantPanel';
 import { MathFormula } from '../MathText';
-import { Camera3D, drawAxes3D, drawLathe3D, simpson } from '../../utils/mathEngine';
+import { Camera3D, drawLathe3D, simpson } from '../../utils/mathEngine';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
 
 type Preset = 'vase' | 'sphere_cap' | 'glass';
@@ -39,8 +39,8 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
         formula: 'r(x) = 4,4 + 1,8·sin(πx/13,5) − 0,018(x − 8)²',
         formulaTex: `r(x) = 4{,}4 + 1{,}8\\sin\\!\\left(\\dfrac{\\pi x}{13{,}5}\\right) - 0{,}018(x-8)^2`,
         integralTex: `V_{\\text{trong}} = \\pi\\int_{${wallThick.toFixed(2)}}^{20} [r(x) - ${wallThick.toFixed(2)}]^2\\,dx`,
-        scaleX: 0.3,
-        scaleR: 0.34,
+        scaleX: 0.28,
+        scaleR: 0.28,
       };
     }
     if (preset === 'sphere_cap') {
@@ -54,8 +54,8 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
         formula: `r(x) = √(${Rcap.toFixed(1)}² − x²), h = ${hW.toFixed(2)} m`,
         formulaTex: `r(x) = \\sqrt{${Rcap.toFixed(1)}^2 - x^2}, \\; h = ${hW.toFixed(2)}\\text{ m}`,
         integralTex: `V(h) = \\pi\\int_{-R}^{-R+h}(R^2 - x^2)\\,dx = \\pi h^2\\!\\left(R - \\dfrac{h}{3}\\right)`,
-        scaleX: 1.55,
-        scaleR: 1.55,
+        scaleX: 1.15,
+        scaleR: 1.15,
       };
     }
     return {
@@ -67,8 +67,8 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
       formula: 'r(x) = √(2x + 4), x ∈ [0; 10] cm',
       formulaTex: `r(x) = \\sqrt{2x + 4}, \\; x \\in [0;\\,10]\\text{ cm}`,
       integralTex: `V = \\pi\\int_{0}^{10} (2x+4)\\,dx = 140\\pi\\text{ cm}^3`,
-      scaleX: 0.56,
-      scaleR: 0.42,
+      scaleX: 0.44,
+      scaleR: 0.44,
     };
   })();
 
@@ -76,7 +76,9 @@ export const Lab3RevolutionTab: React.FC<Props> = ({ onOpenSettings }) => {
   const Vinner =
     preset === 'sphere_cap'
       ? Vouter
-      : Math.PI * simpson((x) => Math.max(0, profile.fn(x) - wallThick) ** 2, profile.a + wallThick, profile.b);
+      : profile.b > profile.a + wallThick
+        ? Math.PI * simpson((x) => Math.max(0, profile.fn(x) - wallThick) ** 2, profile.a + wallThick, profile.b)
+        : 0;
   const Vmat = Math.max(0, Vouter - Vinner);
   const VfullSphere = (4 / 3) * Math.PI * Rcap ** 3;
 
@@ -130,7 +132,6 @@ Hãy trả lời ngắn gọn, bám sát đề thi TN THPT cấu trúc mới:
   };
 
   const draw = (ctx: CanvasRenderingContext2D, w: number, h: number, cam: Camera3D) => {
-    drawAxes3D(ctx, w, h, cam, 66, ['Trục xoay Ox', 'Oy (bán kính r)', 'Oz']);
     drawLathe3D(ctx, w, h, cam, profile.fn, profile.a, profile.b, profile.scaleX, profile.scaleR, sweepDeg, {
       xray,
       showDisk,
@@ -138,6 +139,20 @@ Hãy trả lời ngắn gọn, bám sát đề thi TN THPT cấu trúc mới:
       centerX: preset === 'sphere_cap' ? 0 : (profile.a + profile.b) / 2,
       fullSphereR: preset === 'sphere_cap' ? Rcap : null,
       palette: preset === 'sphere_cap' ? 'water' : 'ceramic',
+      wallThick: preset === 'sphere_cap' ? 0 : wallThick,
+      closedBothEnds: false,
+      axisLabels: [`Trục xoay Ox (${profile.unit})`, `Oy (bán kính r)`, 'Oz'],
+      xTicks:
+        preset === 'sphere_cap'
+          ? [
+              { x: -Rcap, label: `-R` },
+              { x: profile.b, label: `-R+h` },
+              { x: Rcap, label: `+R` },
+            ]
+          : [
+              { x: profile.a, label: `${profile.a}` },
+              { x: profile.b, label: `${profile.b}${profile.unit}` },
+            ],
     });
   };
 
@@ -330,6 +345,9 @@ Hãy trả lời ngắn gọn, bám sát đề thi TN THPT cấu trúc mới:
           legend={[
             { color: '#dc2626', label: 'Đường sinh y = r(x) ban đầu' },
             { color: preset === 'sphere_cap' ? '#0ea5e9' : '#3b82f6', label: `Bề mặt tròn xoay quét ${sweepDeg}°` },
+            ...(preset !== 'sphere_cap' && wallThick > 0
+              ? [{ color: '#14b8a6', label: `Lõi lòng trong r(x) − ${wallThick.toFixed(2)} cm` }]
+              : []),
             { color: '#f59e0b', label: 'Lát đĩa vi phân dV = π[r(x)]²dx' },
           ]}
           onDraw={draw}

@@ -4,7 +4,17 @@ import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { AiAssistantPanel } from '../AiAssistantPanel';
 import { MathFormula } from '../MathText';
-import { Camera3D, drawAxes3D, project3D, simpson } from '../../utils/mathEngine';
+import {
+  Camera3D,
+  RenderItem,
+  avgDepth,
+  computeFaceLighting,
+  drawFloorGridAndBuildAxes,
+  drawSlicedSolid3D,
+  flushRenderQueue,
+  project3D,
+  simpson,
+} from '../../utils/mathEngine';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
 
 type Preset = 'tent_tri' | 'tank_cyl' | 'dome_semi';
@@ -91,95 +101,175 @@ Hãy trình bày ngắn gọn, rõ ràng:
   };
 
   const draw = (ctx: CanvasRenderingContext2D, w: number, h: number, cam: Camera3D) => {
-    const scale = 68;
-    drawAxes3D(ctx, w, h, cam, scale, ['Ox', 'Oz (cao)', 'Oy']);
-    const faces: { pts: { sx: number; sy: number; depth: number }[]; depth: number; fill: string; stroke: string }[] = [];
-
     if (preset === 'tent_tri' || preset === 'dome_semi') {
-      const step = (2 * R) / nSlices;
-      for (let i = 0; i < nSlices; i++) {
-        const xm = -R + (i + 0.5) * step;
-        const halfW = Math.sqrt(Math.max(0, R * R - xm * xm));
-        const x0 = -R + i * step;
-        const x1 = x0 + step * 0.92;
-        const isMid = i === Math.floor(nSlices / 2);
+      drawSlicedSolid3D(ctx, w, h, cam, {
+        shape: preset === 'tent_tri' ? 'equilateral-triangle' : 'semicircle',
+        halfWidthFn: (x) => Math.sqrt(Math.max(0, R * R - x * x)),
+        a: -R,
+        b: R,
+        nSlices,
+        // Tỷ lệ đẳng hướng 1:1:1 cố định để kéo R ∈ [1; 3] thấy vật thể phóng lớn thật mà không tràn khung
+        unitScale: preset === 'tent_tri' ? 0.8 : 0.96,
+        projScale: 64,
+        axisLabels: ['Ox', 'Oy', 'Oz (cao)'],
+        xTicks: [
+          { x: -R, label: `-${R.toFixed(1)}` },
+          { x: R, label: `+${R.toFixed(1)}` },
+        ],
+      });
+      return;
+    }
 
-        if (preset === 'tent_tri') {
-          const triH = Math.sqrt(3) * halfW;
-          const pF = [
-            project3D(x1, 0, -halfW, w, h, cam, scale),
-            project3D(x1, 0, halfW, w, h, cam, scale),
-            project3D(x1, triH, 0, w, h, cam, scale),
-          ];
-          const pB = [
-            project3D(x0, 0, -halfW, w, h, cam, scale),
-            project3D(x0, 0, halfW, w, h, cam, scale),
-            project3D(x0, triH, 0, w, h, cam, scale),
-          ];
-          const colMain = isMid ? 'rgba(217, 119, 6, 0.72)' : 'rgba(29, 78, 216, 0.28)';
-          const colSide = isMid ? 'rgba(245, 158, 11, 0.78)' : 'rgba(13, 148, 136, 0.36)';
-          const stroke = isMid ? '#92400e' : 'rgba(30, 58, 138, 0.65)';
-          faces.push({ pts: pF, depth: (pF[0].depth + pF[1].depth + pF[2].depth) / 3, fill: colMain, stroke });
-          faces.push({ pts: pB, depth: (pB[0].depth + pB[1].depth + pB[2].depth) / 3, fill: colMain, stroke });
-          faces.push({ pts: [pB[0], pF[0], pF[2], pB[2]], depth: (pB[0].depth + pF[2].depth) / 2, fill: colSide, stroke });
-          faces.push({ pts: [pB[1], pF[1], pF[2], pB[2]], depth: (pB[1].depth + pF[2].depth) / 2, fill: colSide, stroke });
-        } else {
-          const segs = 14;
-          const pts = [];
-          for (let k = 0; k <= segs; k++) {
-            const ang = (Math.PI * k) / segs;
-            pts.push(project3D(xm, halfW * Math.sin(ang), halfW * Math.cos(ang), w, h, cam, scale));
-          }
-          const avgD = pts.reduce((a, p) => a + p.depth, 0) / pts.length;
-          faces.push({
-            pts,
-            depth: avgD,
-            fill: isMid ? 'rgba(217, 119, 6, 0.65)' : 'rgba(29, 78, 216, 0.26)',
-            stroke: isMid ? '#92400e' : 'rgba(30, 58, 138, 0.65)',
-          });
-        }
+    // Dự án 3B: Bồn nước trụ nằm ngang (hệ thuận Oxy dựng đứng: Ox chiều dài L, Oy chiều cao mực nước h, Oz bề rộng)
+    const projScale = 64;
+    const unitScale = 0.72; // Đẳng hướng 1:1:1 cho cả R và L (R ≤ 3, L ≤ 6 đều gọn trong khung)
+    const Rc = R * unitScale;
+    const Lc = L * unitScale;
+    const hLevel = -Rc + hRatio * 2 * Rc;
+
+    const { axisItems, drawLabelsOverlay } = drawFloorGridAndBuildAxes(
+      ctx,
+      w,
+      h,
+      cam,
+      projScale,
+      ['Ox (chiều dài L)', 'Oy (mực h)', 'Oz'],
+      {
+        coordMode: 'xy-up',
+        target: [0, 0, 0],
+        origin: [0, 0, 0],
+        gridY: -Rc,
+        gridHalfX: Math.max(2.8, Lc * 0.65),
+        gridHalfZ: Math.max(2.4, Rc + 0.9),
+        xRange: [-Lc * 0.65 - 0.5, Lc * 0.65 + 0.75],
+        yRange: [-Rc - 0.35, Rc + 0.95],
+        zRange: [-Rc - 0.6, Rc + 0.85],
+        xTicks: [
+          { pos: -Lc / 2, label: `-${(L / 2).toFixed(1)}` },
+          { pos: Lc / 2, label: `+${(L / 2).toFixed(1)}` },
+        ],
+      },
+    );
+
+    const items: RenderItem[] = [...axisItems];
+
+    // 1. Khung vỏ bồn trụ kính trong suốt phân đoạn theo chiều sâu thực (không còn hack +10 hay đĩa xám đặc)
+    const ringCount = 8;
+    const ringSegs = 32;
+    for (let i = 0; i <= ringCount; i++) {
+      const x = -Lc / 2 + (Lc * i) / ringCount;
+      const isEnd = i === 0 || i === ringCount;
+      for (let k = 0; k < ringSegs; k++) {
+        const a1 = (2 * Math.PI * k) / ringSegs;
+        const a2 = (2 * Math.PI * (k + 1)) / ringSegs;
+        const p1 = project3D(x, Rc * Math.sin(a1), Rc * Math.cos(a1), w, h, cam, projScale);
+        const p2 = project3D(x, Rc * Math.sin(a2), Rc * Math.cos(a2), w, h, cam, projScale);
+        items.push({
+          kind: 'line',
+          p1,
+          p2,
+          depth: (p1.depth + p2.depth) * 0.5,
+          stroke: isEnd ? 'rgba(71, 85, 105, 0.75)' : 'rgba(100, 116, 139, 0.34)',
+          lw: isEnd ? 1.8 : 1.0,
+        });
       }
-    } else {
-      const Rc = R * 0.85;
-      const Lc = L * 0.9;
-      const hLevel = -Rc + hRatio * 2 * Rc;
-      const segs = 28;
-      for (let i = 0; i <= 12; i++) {
-        const x = -Lc / 2 + (Lc * i) / 12;
-        const ring = [];
-        for (let k = 0; k <= segs; k++) {
-          const ang = (2 * Math.PI * k) / segs;
-          ring.push(project3D(x, Rc * Math.sin(ang), Rc * Math.cos(ang), w, h, cam, scale));
-        }
-        faces.push({ pts: ring, depth: ring[0].depth + 10, fill: 'rgba(148,163,184,0.03)', stroke: 'rgba(100,116,139,0.38)' });
-      }
-      const step = Lc / nSlices;
-      for (let i = 0; i < nSlices; i++) {
-        const x = -Lc / 2 + (i + 0.5) * step;
-        const angLim = Math.asin(Math.max(-1, Math.min(1, hLevel / Rc)));
-        const aStart = -Math.PI - angLim;
-        const aEnd = angLim;
-        const wPts = [];
-        for (let k = 0; k <= 18; k++) {
-          const ang = aStart + ((aEnd - aStart) * k) / 18;
-          wPts.push(project3D(x, Rc * Math.sin(ang), Rc * Math.cos(ang), w, h, cam, scale));
-        }
-        const avgD = wPts.reduce((a, p) => a + p.depth, 0) / wPts.length;
-        faces.push({ pts: wPts, depth: avgD, fill: 'rgba(14, 165, 233, 0.34)', stroke: 'rgba(3, 105, 161, 0.6)' });
+    }
+    // 12 đường sinh dọc nối 2 đáy trụ kính
+    const ribCount = 12;
+    const ribSegs = 12;
+    for (let k = 0; k < ribCount; k++) {
+      const ang = (2 * Math.PI * k) / ribCount;
+      const py = Rc * Math.sin(ang);
+      const pz = Rc * Math.cos(ang);
+      for (let s = 0; s < ribSegs; s++) {
+        const x1 = -Lc / 2 + (Lc * s) / ribSegs;
+        const x2 = -Lc / 2 + (Lc * (s + 1)) / ribSegs;
+        const p1 = project3D(x1, py, pz, w, h, cam, projScale);
+        const p2 = project3D(x2, py, pz, w, h, cam, projScale);
+        items.push({
+          kind: 'line',
+          p1,
+          p2,
+          depth: (p1.depth + p2.depth) * 0.5,
+          stroke: 'rgba(100, 116, 139, 0.30)',
+          lw: 1.0,
+        });
       }
     }
 
-    faces.sort((a, b) => b.depth - a.depth);
-    faces.forEach((f) => {
-      ctx.beginPath();
-      f.pts.forEach((p, idx) => (idx === 0 ? ctx.moveTo(p.sx, p.sy) : ctx.lineTo(p.sx, p.sy)));
-      ctx.closePath();
-      ctx.fillStyle = f.fill;
-      ctx.fill();
-      ctx.strokeStyle = f.stroke;
-      ctx.lineWidth = 1.1;
-      ctx.stroke();
-    });
+    // 2. Các lát nước nằm ngang 3D khớp trực tiếp công thức V(h) = L ∫_{-R}^{-R+h} 2√(R² - y²) dy
+    const hScaled = hLevel - -Rc;
+    const dy = hScaled / nSlices;
+    const pushWaterFace = (
+      pts: ReturnType<typeof project3D>[],
+      isTopSurface = false,
+      isHighlight = false,
+    ) => {
+      const { light } = computeFaceLighting(pts, true);
+      const fill = isHighlight
+        ? `rgba(${Math.round(215 + 35 * light)}, ${Math.round(145 + 45 * light)}, ${Math.round(25 + 25 * light)}, 0.72)`
+        : isTopSurface
+          ? `rgba(${Math.round(56 + 48 * light)}, ${Math.round(189 + 46 * light)}, ${Math.round(248)}, 0.78)`
+          : `rgba(${Math.round(14 + 34 * light)}, ${Math.round(140 + 58 * light)}, ${Math.round(215 + 36 * light)}, 0.44)`;
+      items.push({
+        kind: 'poly',
+        pts,
+        depth: avgDepth(pts),
+        fill,
+        stroke: isHighlight ? '#b45309' : isTopSurface ? 'rgba(2, 132, 199, 0.85)' : 'rgba(3, 105, 161, 0.42)',
+        lw: isTopSurface || isHighlight ? 1.3 : 0.75,
+      });
+    };
+
+    const highlightLayer = Math.floor(nSlices * 0.5);
+    for (let i = 0; i < nSlices; i++) {
+      const ym = -Rc + (i + 0.5) * dy;
+      const y0 = ym - dy * 0.47;
+      const y1 = ym + dy * 0.47;
+      const halfW = Math.sqrt(Math.max(0, Rc * Rc - ym * ym));
+      if (halfW < 1e-4) continue;
+      const isTop = i === nSlices - 1;
+      const isHi = i === highlightLayer;
+
+      const xL = -Lc / 2;
+      const xR = Lc / 2;
+      const p000 = project3D(xL, y0, -halfW, w, h, cam, projScale);
+      const p100 = project3D(xR, y0, -halfW, w, h, cam, projScale);
+      const p101 = project3D(xR, y0, halfW, w, h, cam, projScale);
+      const p001 = project3D(xL, y0, halfW, w, h, cam, projScale);
+      const p010 = project3D(xL, y1, -halfW, w, h, cam, projScale);
+      const p110 = project3D(xR, y1, -halfW, w, h, cam, projScale);
+      const p111 = project3D(xR, y1, halfW, w, h, cam, projScale);
+      const p011 = project3D(xL, y1, halfW, w, h, cam, projScale);
+
+      // 6 mặt hướng ngoài của lát nước hình hộp chữ nhật (dài L, rộng 2√(R²-y²), dày Δy)
+      pushWaterFace([p010, p110, p111, p011], isTop, isHi); // mặt trên (+Oy)
+      pushWaterFace([p000, p001, p101, p100], false, isHi); // mặt dưới (-Oy)
+      pushWaterFace([p001, p011, p111, p101], false, isHi); // thành trước (+Oz)
+      pushWaterFace([p100, p110, p010, p000], false, isHi); // thành sau (-Oz)
+      pushWaterFace([p101, p111, p110, p100], false, isHi); // đầu phải (+Ox)
+      pushWaterFace([p000, p010, p011, p001], false, isHi); // đầu trái (-Ox)
+    }
+
+    // Vẽ đường mực nước phẳng chuẩn tại y = hLevel trên 2 mặt đáy trụ
+    const surfHalfW = Math.sqrt(Math.max(0, Rc * Rc - hLevel * hLevel));
+    if (surfHalfW > 1e-4) {
+      for (const xEnd of [-Lc / 2, Lc / 2]) {
+        const s1 = project3D(xEnd, hLevel, -surfHalfW, w, h, cam, projScale);
+        const s2 = project3D(xEnd, hLevel, surfHalfW, w, h, cam, projScale);
+        items.push({
+          kind: 'line',
+          p1: s1,
+          p2: s2,
+          depth: (s1.depth + s2.depth) * 0.5 - 0.05,
+          stroke: '#0284c7',
+          lw: 2.2,
+        });
+      }
+    }
+
+    flushRenderQueue(ctx, items);
+    drawLabelsOverlay();
   };
 
   return (
@@ -348,12 +438,14 @@ Hãy trình bày ngắn gọn, rõ ràng:
           legend={
             preset === 'tank_cyl'
               ? [
-                  { color: 'rgba(14,165,233,0.6)', label: 'Lượng nước bên trong bồn theo mực h' },
-                  { color: '#94a3b8', label: `Vỏ trụ nằm ngang (L = ${L.toFixed(1)} m, R = ${R.toFixed(1)} m)` },
+                  { color: 'rgba(14,165,233,0.65)', label: 'Các lát nước ngang 2L√(R²−y²)·Δy theo mực h' },
+                  { color: '#d97706', label: 'Lớp nước vi phân tiêu biểu ở độ sâu y' },
+                  { color: '#64748b', label: `Vỏ trụ nằm ngang (L = ${L.toFixed(1)} m, R = ${R.toFixed(1)} m)` },
                 ]
               : [
-                  { color: 'rgba(29,78,216,0.45)', label: 'Các lát cắt vi phân S(x)·Δx' },
+                  { color: 'rgba(29,78,216,0.45)', label: 'Các lát cắt vi phân 3D S(x)·Δx' },
                   { color: '#d97706', label: 'Thiết diện tiêu biểu tại vị trí trung tâm' },
+                  { color: '#0f766e', label: 'Đường tròn đáy x² + y² = R² trên mặt phẳng Oxy (z = 0)' },
                 ]
           }
           onDraw={draw}

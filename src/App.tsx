@@ -9,6 +9,7 @@ import {
   Layers,
   Loader2,
   ShieldAlert,
+  UserRound,
   Wand2,
 } from 'lucide-react';
 import { ApiKeyModal } from './components/ApiKeyModal';
@@ -20,10 +21,11 @@ import { AiProblemStudioTab } from './components/tabs/AiProblemStudioTab';
 import { MistakesCardsTab } from './components/tabs/MistakesCardsTab';
 import { QuizTab } from './components/tabs/QuizTab';
 import { TeacherRubricTab } from './components/tabs/TeacherRubricTab';
+import { AuthorTab } from './components/tabs/AuthorTab';
 import { apiKeyManager } from './services/apiKeyManager';
 import { setModelFallbackListener } from './services/geminiService';
 
-type TabKey = 'lab1' | 'lab2' | 'lab3' | 'lab4' | 'studio' | 'mistakes' | 'quiz' | 'teacher';
+type TabKey = 'lab1' | 'lab2' | 'lab3' | 'lab4' | 'studio' | 'mistakes' | 'quiz' | 'teacher' | 'author';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('lab1');
@@ -69,6 +71,7 @@ export function App() {
     { key: 'mistakes', label: '4 Thẻ Lỗi Sai', icon: <ShieldAlert className="h-4 w-4" /> },
     { key: 'quiz', label: 'Đề Pre/Post-test', icon: <ClipboardCheck className="h-4 w-4" /> },
     { key: 'teacher', label: 'Góc GV: Rubric & AI', icon: <Award className="h-4 w-4" /> },
+    { key: 'author', label: 'Tác giả', icon: <UserRound className="h-4 w-4" /> },
   ];
 
   return (
@@ -163,11 +166,27 @@ export function App() {
         {activeTab === 'mistakes' && <MistakesCardsTab onJumpToTab={(t) => setActiveTab(t)} />}
         {activeTab === 'quiz' && <QuizTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
         {activeTab === 'teacher' && <TeacherRubricTab onOpenSettings={() => setIsKeyModalOpen(true)} />}
+        {activeTab === 'author' && <AuthorTab onJumpToTab={(t) => setActiveTab(t)} />}
       </main>
 
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white px-4 py-3 text-center text-xs text-slate-500">
-        Sản phẩm số thuộc Sáng kiến kinh nghiệm môn Toán 12 (2025–2026) · Tác giả: <b>Phan Thị Thuỳ</b> · Trường THPT Tây Nam, TP. Hồ Chí Minh
+        <div className="mx-auto flex flex-wrap items-center justify-center gap-1.5">
+          <span>Sản phẩm số thuộc Sáng kiến kinh nghiệm môn Toán 12 (2025–2026) · Tác giả:</span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('author')}
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-0.5 pr-2.5 font-bold text-blue-900 transition hover:border-blue-300 hover:bg-blue-50"
+          >
+            <img
+              src={`${import.meta.env.BASE_URL}author-phan-thi-thuy.jpg`}
+              alt="Phan Thị Thùy"
+              className="h-5 w-5 rounded-full object-cover object-[50%_20%]"
+            />
+            <span>Phan Thị Thùy</span>
+          </button>
+          <span>· Trường THPT Tây Nam, TP. Hồ Chí Minh</span>
+        </div>
       </footer>
 
       {/* API Key Modal */}

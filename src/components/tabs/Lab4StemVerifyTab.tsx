@@ -15,7 +15,7 @@ import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { AiAssistantPanel } from '../AiAssistantPanel';
 import { MathFormula } from '../MathText';
-import { Camera3D, Point2D, drawAxes3D, drawLathe3D, evalPiecewiseR, project3D, simpson } from '../../utils/mathEngine';
+import { Camera3D, Point2D, drawLathe3D, evalPiecewiseR, simpson } from '../../utils/mathEngine';
 import { PartialStreamError, streamAiWithFallback } from '../../services/geminiService';
 
 interface MeasuredPoint extends Point2D {
@@ -406,32 +406,29 @@ Hãy viết bản nhận xét thẩm định ngắn gọn, sắc bén gồm 3 ph
   };
 
   const draw = (ctx: CanvasRenderingContext2D, w: number, h: number, cam: Camera3D) => {
-    const scaleX = 5.6 / Math.max(1, b - a);
-    const maxR = Math.max(...sorted.map((p) => p.r), 1);
-    const scaleR = 2.1 / maxR;
-    drawAxes3D(ctx, w, h, cam, 66, ['Chiều cao x (cm)', 'Bán kính r (cm)', 'Oz']);
+    const spanX = Math.max(1, b - a);
+    const maxR = Math.max(...sorted.map((p) => p.r), 0.5);
+    // Tỷ lệ đẳng hướng 1:1:1 giữ đúng hình dáng vật thể thực tế (không làm mập/dài giả tạo)
+    const unitScale = Math.min(5.6 / spanX, 2.2 / maxR);
     if (b > a) {
-      drawLathe3D(ctx, w, h, cam, fnOut, a, b, scaleX, scaleR, 330, {
+      drawLathe3D(ctx, w, h, cam, fnOut, a, b, unitScale, unitScale, 320, {
         xray: true,
         showDisk: false,
         palette: 'stem',
+        wallThick,
+        closedBothEnds: false,
+        axisLabels: ['Chiều cao x (cm)', 'Bán kính r (cm)', 'Oz'],
+        markers: sorted.map((pt, idx) => ({
+          x: pt.x,
+          r: pt.r,
+          label: `M${idx + 1}(${pt.x};${pt.r})`,
+        })),
+        xTicks: [
+          { x: a, label: `${a}cm` },
+          { x: b, label: `${b}cm` },
+        ],
       });
     }
-
-    const xMid = (a + b) / 2;
-    sorted.forEach((pt, idx) => {
-      const p3 = project3D((pt.x - xMid) * scaleX, pt.r * scaleR, 0, w, h, cam, 66);
-      ctx.beginPath();
-      ctx.arc(p3.sx, p3.sy, 5.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#f59e0b';
-      ctx.fill();
-      ctx.strokeStyle = '#78350f';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 11.5px Segoe UI, sans-serif';
-      ctx.fillText(`M${idx + 1}(${pt.x};${pt.r})`, p3.sx + 7, p3.sy - 6);
-    });
   };
 
   return (

@@ -16,7 +16,7 @@ import { ThinkingLevel } from '@google/genai';
 import { CanvasStage } from '../CanvasStage';
 import { MathFormula, RichMathText } from '../MathText';
 import { compileMathExpr } from '../../utils/safeMathParser';
-import { Camera3D, drawAxes3D, drawLathe3D, project3D, simpson } from '../../utils/mathEngine';
+import { Camera3D, drawLathe3D, drawSlicedSolid3D, simpson } from '../../utils/mathEngine';
 import { generateJsonWithFallback } from '../../services/geminiService';
 
 export type SimMode = 'area-2d' | 'two-curves-2d' | 'slices-3d' | 'revolution-3d';
@@ -251,7 +251,7 @@ export const AiProblemStudioTab: React.FC<Props> = ({ onOpenSettings }) => {
   const [gxOverride, setGxOverride] = useState(SAMPLE_PRESETS[0].spec.gx || '0');
   const [aVal, setAVal] = useState(SAMPLE_PRESETS[0].spec.a);
   const [bVal, setBVal] = useState(SAMPLE_PRESETS[0].spec.b);
-  const [sweepDeg, setSweepDeg] = useState(320);
+  const [sweepDeg, setSweepDeg] = useState(315);
   const [nSlices, setNSlices] = useState(24);
   const [wallThick, setWallThick] = useState(SAMPLE_PRESETS[0].spec.wallThickness ?? 0);
   const [xray, setXray] = useState(true);
@@ -319,12 +319,14 @@ export const AiProblemStudioTab: React.FC<Props> = ({ onOpenSettings }) => {
     const exact = Math.PI * simpson((x) => f(x) ** 2, lo, hi);
     const inner =
       wallThick > 0
-        ? Math.PI *
-          simpson(
-            (x) => Math.max(0, Math.abs(f(x)) - wallThick) ** 2,
-            Math.min(hi, lo + wallThick),
-            Math.max(lo, hi - wallThick),
-          )
+        ? hi - lo > 2 * wallThick
+          ? Math.PI *
+            simpson(
+              (x) => Math.max(0, Math.abs(f(x)) - wallThick) ** 2,
+              lo + wallThick,
+              hi - wallThick,
+            )
+          : 0
         : exact;
     let riemann = 0;
     for (let i = 0; i < nSlices; i++) {
@@ -582,77 +584,54 @@ CẤU TRÚC JSON TRẢ VỀ:
       return;
     }
 
-    // 3D modes
+    // 3D modes — tỷ lệ đẳng hướng 1:1:1 không bóp méo hình học không gian
     let maxR = 0.5;
     for (let i = 0; i <= 80; i++) {
       const x = lo + ((hi - lo) * i) / 80;
       maxR = Math.max(maxR, Math.abs(f(x)));
     }
-    const scaleX = 5.4 / Math.max(0.5, hi - lo);
-    const scaleR = 2.1 / maxR;
+    const spanX = Math.max(0.5, hi - lo);
 
     if (spec.mode === 'revolution-3d') {
-      drawAxes3D(ctx, w, h, cam, 66, [`Ox (${spec.unit})`, `Oy (${spec.unit})`, 'Oz']);
-      drawLathe3D(ctx, w, h, cam, (x) => Math.abs(f(x)), lo, hi, scaleX, scaleR, sweepDeg, {
+      const unitScale = Math.min(5.4 / spanX, 2.1 / maxR);
+      drawLathe3D(ctx, w, h, cam, (x) => Math.abs(f(x)), lo, hi, unitScale, unitScale, sweepDeg, {
         xray,
         showDisk: true,
         slicePos: 0.5,
         palette: 'ceramic',
+        wallThick,
+        closedBothEnds: true,
+        axisLabels: [`Ox (${spec.unit})`, `Oy (${spec.unit})`, 'Oz'],
+        xTicks: [
+          { x: lo, label: `${lo.toFixed(1)}` },
+          { x: hi, label: `${hi.toFixed(1)}` },
+        ],
       });
       return;
     }
 
-    // slices-3d
-    drawAxes3D(ctx, w, h, cam, 66, [`Ox (${spec.unit})`, 'Oz (cao)', `Oy (${spec.unit})`]);
-    const scale = 66;
-    const xMid = (lo + hi) / 2;
-    const step = (hi - lo) / nSlices;
-    const faces: { pts: { sx: number; sy: number; depth: number }[]; depth: number; fill: string; stroke: string }[] = [];
-
-    for (let i = 0; i < nSlices; i++) {
-      const xm = lo + (i + 0.5) * step;
-      const halfW = Math.abs(f(xm)) * scaleR;
-      const X = (xm - xMid) * scaleX;
-      const isMid = i === Math.floor(nSlices / 2);
-      const fill = isMid ? 'rgba(217, 119, 6, 0.7)' : 'rgba(29, 78, 216, 0.28)';
-      const stroke = isMid ? '#92400e' : 'rgba(30, 58, 138, 0.68)';
-
-      let pts: { sx: number; sy: number; depth: number }[] = [];
-      if (spec.sliceShape === 'equilateral-triangle') {
-        const triH = Math.sqrt(3) * halfW;
-        pts = [
-          project3D(X, 0, -halfW, w, h, cam, scale),
-          project3D(X, 0, halfW, w, h, cam, scale),
-          project3D(X, triH, 0, w, h, cam, scale),
-        ];
-      } else if (spec.sliceShape === 'semicircle') {
-        for (let k = 0; k <= 14; k++) {
-          const ang = (Math.PI * k) / 14;
-          pts.push(project3D(X, halfW * Math.sin(ang), halfW * Math.cos(ang), w, h, cam, scale));
-        }
-      } else {
-        const sqH = 2 * halfW;
-        pts = [
-          project3D(X, 0, -halfW, w, h, cam, scale),
-          project3D(X, 0, halfW, w, h, cam, scale),
-          project3D(X, sqH, halfW, w, h, cam, scale),
-          project3D(X, sqH, -halfW, w, h, cam, scale),
-        ];
-      }
-      const avgD = pts.reduce((s, p) => s + p.depth, 0) / pts.length;
-      faces.push({ pts, depth: avgD, fill, stroke });
-    }
-
-    faces.sort((u, v) => v.depth - u.depth);
-    faces.forEach((face) => {
-      ctx.beginPath();
-      face.pts.forEach((p, idx) => (idx === 0 ? ctx.moveTo(p.sx, p.sy) : ctx.lineTo(p.sx, p.sy)));
-      ctx.closePath();
-      ctx.fillStyle = face.fill;
-      ctx.fill();
-      ctx.strokeStyle = face.stroke;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
+    // slices-3d — hệ tọa độ Oxyz chuẩn thuận SGK Toán 12 với lát cắt 3D có độ dày Δx
+    const sliceShape = spec.sliceShape ?? 'square';
+    const maxH =
+      sliceShape === 'equilateral-triangle'
+        ? Math.sqrt(3) * maxR
+        : sliceShape === 'semicircle'
+          ? maxR
+          : 2 * maxR;
+    const unitScale = Math.min(5.0 / spanX, 2.1 / maxR, 3.4 / Math.max(0.5, maxH));
+    drawSlicedSolid3D(ctx, w, h, cam, {
+      shape: sliceShape,
+      halfWidthFn: (x) => Math.abs(f(x)),
+      a: lo,
+      b: hi,
+      nSlices,
+      unitScale,
+      projScale: 66,
+      axisLabels: [`Ox (${spec.unit})`, `Oy (${spec.unit})`, 'Oz (cao)'],
+      xTicks: [
+        { x: lo, label: `${lo.toFixed(1)}` },
+        { x: hi, label: `${hi.toFixed(1)}` },
+      ],
     });
   };
 
@@ -916,7 +895,7 @@ CẤU TRÚC JSON TRẢ VỀ:
                   ]
           }
           onDraw={drawDynamic}
-          deps={[spec, fxOverride, gxOverride, aVal, bVal, sweepDeg, nSlices, xray]}
+          deps={[spec, fxOverride, gxOverride, aVal, bVal, sweepDeg, nSlices, wallThick, xray]}
           exportName={spec.title}
         />
       </div>
